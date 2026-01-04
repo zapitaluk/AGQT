@@ -1,6 +1,6 @@
-# Antigravity Quota Tray
+# Antigravity Quota Tray (AGQT)
 
-A lightweight Windows system tray application that monitors your [Windsurf](https://codeium.com/windsurf) (Antigravity) AI model quota usage in real-time.
+A lightweight Windows system tray application that monitors your Google Antigravity AI model quota usage in real-time.
 
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18-green)
@@ -47,7 +47,7 @@ Right-click menu example:
 ### Prerequisites
 
 - Windows 10/11
-- [Windsurf IDE](https://codeium.com/windsurf) installed and running
+- Google Antigravity installed and running
 - [Node.js](https://nodejs.org/) v18+ (for building only)
 
 ### Quick Start (From Source)
@@ -85,7 +85,7 @@ This creates:
 
 ## Usage
 
-1. **Start Windsurf** - The app needs Windsurf running to detect the language server
+1. **Start Antigravity** - The app needs Antigravity running to detect the language server
 2. **Run the app** - Double-click `antigravity-quota.exe` or run `npm start`
 3. **Check the system tray** - Look for the colored icon in your taskbar
 4. **Right-click** - View all models and their quota status
@@ -136,7 +136,7 @@ Edit `config.json` to customize behavior:
 
 The application:
 
-1. **Detects Windsurf Process** - Finds `language_server_windows_x64.exe` running on your system
+1. **Detects Antigravity Process** - Finds `language_server_windows_x64.exe` running on your system
 2. **Extracts Connection Info** - Reads the CSRF token and port from process arguments
 3. **Polls Quota API** - Makes HTTPS requests to the local language server endpoint
 4. **Parses Response** - Extracts per-model quota information
@@ -193,7 +193,7 @@ npm run package
 
 ### "Could not find Antigravity process"
 
-- Make sure Windsurf is running
+- Make sure Antigravity is running
 - The app will retry every 30 seconds automatically
 
 ### No tray icon appears
@@ -208,7 +208,7 @@ npm run package
 
 ### Quota not updating
 
-- Verify Windsurf is connected to Codeium servers
+- Verify Antigravity is connected to its servers
 - Check the console output for API errors
 - Try clicking "Refresh Now" in the tray menu
 
@@ -222,6 +222,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Built for monitoring [Windsurf IDE](https://codeium.com/windsurf) quota usage
-- Uses [systray2](https://github.com/nicfv/systray2) for system tray functionality
+- Built for monitoring Google Antigravity quota usage
+- Uses [systray2](https://github.com/felixhao28/node-systray) for system tray functionality
 - Uses [node-notifier](https://github.com/mikaelbr/node-notifier) for desktop notifications

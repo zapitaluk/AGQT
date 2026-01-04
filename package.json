@@ -1,7 +1,7 @@
 {
   "name": "antigravity-quota-tray",
   "version": "1.0.0",
-  "description": "Windows system tray app to monitor Windsurf (Antigravity) AI model quota usage",
+  "description": "Windows system tray app to monitor Google Antigravity AI model quota usage",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
@@ -10,9 +10,8 @@
     "package": "pkg dist/main.js -t node18-win-x64 -o antigravity-quota.exe --assets assets/**/*"
   },
   "keywords": [
-    "windsurf",
     "antigravity",
-    "codeium",
+    "google",
     "quota",
     "system-tray",
     "windows",
