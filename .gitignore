@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Packaged executable (users should build their own)
+*.exe
+
+# Notifier binaries (extracted at build time)
+notifier/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Local config (users create their own)
+# config.json is tracked as a template
