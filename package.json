@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "dev": "tsc && node dist/main.js",
-    "package": "pkg dist/main.js -t node18-win-x64 -o antigravity-quota.exe --assets assets/**/*"
+    "package": "pkg dist/main.js -t node18-win-x64 -o antigravity-quota.exe --assets assets/**/* --assets node_modules/systray2/traybin/**/* && node scripts/postpackage.js",
+    "package-mac": "pkg dist/main.js -t node18-macos-x64,node18-macos-arm64 -o antigravity-quota-mac --assets assets/**/* --assets node_modules/systray2/traybin/**/* && node scripts/postpackage-mac.js"
   },
   "keywords": [
     "antigravity",
@@ -39,10 +40,13 @@
   },
   "pkg": {
     "assets": [
-      "assets/**/*"
+      "assets/**/*",
+      "node_modules/systray2/traybin/**/*"
     ],
     "targets": [
-      "node18-win-x64"
+      "node18-win-x64",
+      "node18-macos-x64",
+      "node18-macos-arm64"
     ]
   }
 }

@@ -4,13 +4,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {config_options} from './utils/types';
+import { config_options } from './utils/types';
 
 const DEFAULT_CONFIG: config_options = {
 	pollingInterval: 120,
 	pinnedModels: [],
 	lowQuotaThreshold: 20,
 	showNotifications: true,
+	openaiApiKey: '',
+	anthropicApiKey: '',
 };
 
 export class ConfigManager {
@@ -18,8 +20,16 @@ export class ConfigManager {
 	private config: config_options;
 
 	constructor() {
-		// Config file is in the same directory as the executable
-		this.config_path = path.join(process.cwd(), 'config.json');
+		// When running via `node`, process.execPath is the node binary (e.g. C:\Program Files\nodejs\node.exe)
+		// When running via `pkg`, it is the compiled bundled executable.
+		// We want config next to the actual app runtime directory.
+		const isPkg = typeof (process as any).pkg !== 'undefined';
+
+		const appDir = isPkg
+			? path.dirname(process.execPath)
+			: process.cwd(); // Fallback to current working dir when running via ts-node/node
+
+		this.config_path = path.join(appDir, 'config.json');
 		this.config = this.load();
 	}
 
@@ -28,14 +38,14 @@ export class ConfigManager {
 			if (fs.existsSync(this.config_path)) {
 				const data = fs.readFileSync(this.config_path, 'utf-8');
 				const parsed = JSON.parse(data);
-				return {...DEFAULT_CONFIG, ...parsed};
+				return { ...DEFAULT_CONFIG, ...parsed };
 			}
 		} catch (e: any) {
 			console.error(`Failed to load config: ${e.message}`);
 		}
 		// Create default config if not exists
 		this.save(DEFAULT_CONFIG);
-		return {...DEFAULT_CONFIG};
+		return { ...DEFAULT_CONFIG };
 	}
 
 	private save(config: config_options) {
@@ -64,6 +74,14 @@ export class ConfigManager {
 
 	get showNotifications(): boolean {
 		return this.config.showNotifications;
+	}
+
+	get openaiApiKey(): string | undefined {
+		return this.config.openaiApiKey;
+	}
+
+	get anthropicApiKey(): string | undefined {
+		return this.config.anthropicApiKey;
 	}
 
 	setPinnedModels(models: string[]) {

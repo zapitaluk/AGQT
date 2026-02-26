@@ -40,6 +40,15 @@ export interface quota_snapshot {
 	models: model_quota_info[];
 }
 
+export interface IQuotaProvider {
+	readonly provider_name: string;
+	on_update(callback: (snapshot: quota_snapshot) => void): void;
+	on_error(callback: (error: Error) => void): void;
+	start_polling(interval_ms: number): void;
+	stop_polling(): void;
+	fetch_quota(): Promise<void>;
+}
+
 export enum quota_level {
 	Normal = 'normal',
 	Warning = 'warning',
@@ -52,6 +61,8 @@ export interface config_options {
 	pinnedModels: string[];
 	lowQuotaThreshold: number;
 	showNotifications: boolean;
+	openaiApiKey?: string;
+	anthropicApiKey?: string;
 }
 
 export interface process_info {

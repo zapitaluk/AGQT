@@ -2,22 +2,35 @@
  * System Tray Manager
  */
 
-import SysTray, {MenuItem, ClickEvent} from 'systray2';
+import SysTray, { MenuItem, ClickEvent } from 'systray2';
 import notifier from 'node-notifier';
-import {exec} from 'child_process';
-import {quota_snapshot} from './utils/types';
-import {ConfigManager} from './config';
+import { exec } from 'child_process';
+import { quota_snapshot } from './utils/types';
+import { ConfigManager } from './config';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Load icons from files and convert to base64
+function resolveIconPath(filename: string): string | null {
+	const candidates = [
+		path.join(path.dirname(process.execPath), 'assets', filename),
+		path.join(__dirname, '..', 'assets', filename),
+	];
+
+	for (const candidate of candidates) {
+		if (fs.existsSync(candidate)) {
+			return candidate;
+		}
+	}
+
+	return null;
+}
+
 function loadIcon(filename: string): string {
-	const iconPath = path.join(__dirname, '..', 'assets', filename);
-	if (fs.existsSync(iconPath)) {
+	const iconPath = resolveIconPath(filename);
+	if (iconPath) {
 		return fs.readFileSync(iconPath).toString('base64');
 	}
-	// Fallback to a minimal valid ICO if file not found
-	console.warn(`Icon file not found: ${iconPath}`);
+	console.warn(`Icon file not found: ${filename}`);
 	return '';
 }
 
@@ -27,7 +40,6 @@ const ICON_RED = loadIcon('icon-red.ico');
 
 type TrayStatus = 'green' | 'yellow' | 'red' | 'gray';
 
-// Extended MenuItem with our click handler
 interface MenuItemWithAction extends MenuItem {
 	action?: () => void;
 }
@@ -35,7 +47,7 @@ interface MenuItemWithAction extends MenuItem {
 export class TrayManager {
 	private tray: SysTray | null = null;
 	private config: ConfigManager;
-	private lastSnapshot: quota_snapshot | null = null;
+	private lastSnapshots: Map<string, quota_snapshot> = new Map();
 	private notifiedModels: Set<string> = new Set();
 	private onRefresh?: () => void;
 	private menuItems: MenuItemWithAction[] = [];
@@ -46,12 +58,12 @@ export class TrayManager {
 
 	async start(onRefresh: () => void) {
 		this.onRefresh = onRefresh;
-		await this.createTray('gray', null);
+		await this.createTray('gray', new Map());
 		console.log('System tray initialized');
 	}
 
-	private async createTray(status: TrayStatus, snapshot: quota_snapshot | null) {
-		const menu = this.buildMenu(status, snapshot);
+	private async createTray(status: TrayStatus, snapshots: Map<string, quota_snapshot>) {
+		const menu = this.buildMenu(status, snapshots);
 
 		this.tray = new SysTray({
 			menu: {
@@ -77,66 +89,76 @@ export class TrayManager {
 	private getStatusText(pct: number): string {
 		if (pct === 0) return '[OUT]';
 		if (pct < this.config.lowQuotaThreshold) return '[LOW]';
-		return '';  // No indicator needed when OK
+		return '';
 	}
 
-	private buildMenu(status: TrayStatus, snapshot: quota_snapshot | null): {tooltip: string; items: MenuItem[]} {
+	private buildMenu(status: TrayStatus, snapshots: Map<string, quota_snapshot>): { tooltip: string; items: MenuItem[] } {
 		this.menuItems = [];
 
-		if (snapshot && snapshot.models.length > 0) {
-			// Add model items
-			for (const model of snapshot.models) {
-				const pct = model.remaining_percentage ?? 100;
-				const bar = this.buildProgressBar(pct);
-				const isPinned = this.config.pinnedModels.includes(model.model_id);
-				const statusText = this.getStatusText(pct);
+		if (snapshots.size > 0) {
+			// Aggregate UI from all Providers
+			for (const [providerName, snapshot] of snapshots.entries()) {
 
-				const item: MenuItemWithAction = {
-					title: `${isPinned ? '* ' : ''}${model.label}  ${bar}  ${pct.toFixed(0)}%${statusText ? ' ' + statusText : ''}`,
-					tooltip: `Reset: ${model.time_until_reset_formatted}. Click to ${isPinned ? 'unpin' : 'pin'}.`,
-					enabled: true,
-					action: () => {
-						const pinned = this.config.pinnedModels;
-						if (pinned.includes(model.model_id)) {
-							this.config.setPinnedModels(pinned.filter(m => m !== model.model_id));
-						} else {
-							this.config.setPinnedModels([...pinned, model.model_id]);
-						}
-						// Refresh menu to show updated pin status
-						if (this.lastSnapshot) {
-							this.update(this.lastSnapshot);
-						}
-					}
-				};
-				this.menuItems.push(item);
-			}
-
-			// Separator
-			this.menuItems.push({
-				title: '-'.repeat(35),
-				tooltip: '',
-				enabled: false
-			});
-
-			// Prompt credits if available
-			if (snapshot.prompt_credits) {
-				const pc = snapshot.prompt_credits;
-				const creditStatus = this.getStatusText(pc.remaining_percentage);
 				this.menuItems.push({
-					title: `Credits: ${pc.available.toLocaleString()} / ${pc.monthly.toLocaleString()} (${pc.remaining_percentage.toFixed(0)}%)${creditStatus ? ' ' + creditStatus : ''}`,
-					tooltip: `${pc.remaining_percentage.toFixed(1)}% remaining`,
+					title: `[${providerName}]`,
+					tooltip: `Quota from ${providerName}`,
 					enabled: false
 				});
+
+				if (snapshot.models.length === 0) {
+					this.menuItems.push({
+						title: `  No data yet...`,
+						tooltip: '',
+						enabled: false
+					});
+				} else {
+					for (const model of snapshot.models) {
+						const pct = model.remaining_percentage ?? 100;
+						const bar = this.buildProgressBar(pct);
+						const isPinned = this.config.pinnedModels.includes(model.model_id);
+						const statusText = this.getStatusText(pct);
+
+						const item: MenuItemWithAction = {
+							title: `${isPinned ? '* ' : '  '}${model.label}  ${bar}  ${pct.toFixed(0)}%${statusText ? ' ' + statusText : ''}`,
+							tooltip: `Reset: ${model.time_until_reset_formatted}. Click to ${isPinned ? 'unpin' : 'pin'}.`,
+							enabled: true,
+							action: () => {
+								const pinned = this.config.pinnedModels;
+								if (pinned.includes(model.model_id)) {
+									this.config.setPinnedModels(pinned.filter(m => m !== model.model_id));
+								} else {
+									this.config.setPinnedModels([...pinned, model.model_id]);
+								}
+								if (this.lastSnapshots.size > 0) {
+									this.update(this.lastSnapshots);
+								}
+							}
+						};
+						this.menuItems.push(item);
+					}
+				}
+
+				if (snapshot.prompt_credits) {
+					const pc = snapshot.prompt_credits;
+					const creditStatus = this.getStatusText(pc.remaining_percentage);
+					this.menuItems.push({
+						title: `  Credits: ${pc.available.toLocaleString()} / ${pc.monthly.toLocaleString()} (${pc.remaining_percentage.toFixed(0)}%)${creditStatus ? ' ' + creditStatus : ''}`,
+						tooltip: `${pc.remaining_percentage.toFixed(1)}% remaining`,
+						enabled: false
+					});
+				}
+
 				this.menuItems.push({
 					title: '-'.repeat(35),
 					tooltip: '',
 					enabled: false
 				});
 			}
+
 		} else {
 			this.menuItems.push({
-				title: 'Waiting for data...',
-				tooltip: 'Connecting to Antigravity',
+				title: 'Waiting for provider data...',
+				tooltip: 'Connecting to Providers',
 				enabled: false
 			});
 			this.menuItems.push({
@@ -148,8 +170,8 @@ export class TrayManager {
 
 		// Action items
 		this.menuItems.push({
-			title: 'Refresh Now',
-			tooltip: 'Fetch latest quota data',
+			title: 'Refresh All Now',
+			tooltip: 'Fetch latest quota data from all providers',
 			enabled: true,
 			action: () => {
 				if (this.onRefresh) this.onRefresh();
@@ -157,8 +179,8 @@ export class TrayManager {
 		});
 
 		this.menuItems.push({
-			title: 'Open Config',
-			tooltip: 'Edit config.json',
+			title: 'Open Config (API Keys)',
+			tooltip: 'Edit config.json to add or change Provider API Keys',
 			enabled: true,
 			action: () => {
 				const configPath = this.config.getConfigPath();
@@ -182,21 +204,26 @@ export class TrayManager {
 			}
 		});
 
-		// Build tooltip showing pinned model status
 		let tooltip = 'Antigravity Quota';
-		if (snapshot && this.config.pinnedModels.length > 0) {
-			const pinnedInfo = snapshot.models
-				.filter(m => this.config.pinnedModels.includes(m.model_id))
-				.map(m => `${m.label}: ${(m.remaining_percentage ?? 100).toFixed(0)}%`)
-				.join(' | ');
-			if (pinnedInfo) {
-				tooltip = pinnedInfo;
+		// Aggregate tooltip for all pinned models globally
+		if (snapshots.size > 0 && this.config.pinnedModels.length > 0) {
+			const allPinnedLabels: string[] = [];
+
+			for (const [_, snap] of snapshots.entries()) {
+				const pinnedInfo = snap.models
+					.filter(m => this.config.pinnedModels.includes(m.model_id))
+					.map(m => `${m.label}: ${(m.remaining_percentage ?? 100).toFixed(0)}%`);
+				allPinnedLabels.push(...pinnedInfo);
+			}
+
+			if (allPinnedLabels.length > 0) {
+				tooltip = allPinnedLabels.join(' | ');
 			}
 		}
 
 		return {
-			tooltip,
-			items: this.menuItems.map(({action, ...item}) => item)
+			tooltip: tooltip.substring(0, 127), // Tray tooltips have max char limits on Windows usually ~128
+			items: this.menuItems.map(({ action, ...item }) => item)
 		};
 	}
 
@@ -215,20 +242,23 @@ export class TrayManager {
 		return '\u2593'.repeat(filled) + '\u2591'.repeat(empty);
 	}
 
-	private getStatus(snapshot: quota_snapshot): TrayStatus {
+	private getStatus(snapshots: Map<string, quota_snapshot>): TrayStatus {
+		if (snapshots.size === 0) return 'gray';
+
+		const allModels = Array.from(snapshots.values()).flatMap(s => s.models);
 		const pinnedModels = this.config.pinnedModels;
 		const relevantModels = pinnedModels.length > 0
-			? snapshot.models.filter(m => pinnedModels.includes(m.model_id))
-			: snapshot.models;
+			? allModels.filter(m => pinnedModels.includes(m.model_id))
+			: allModels;
 
-		// Start with model quotas
 		let minPct = relevantModels.length > 0
 			? Math.min(...relevantModels.map(m => m.remaining_percentage ?? 100))
 			: 100;
 
-		// Also consider prompt credits if available
-		if (snapshot.prompt_credits) {
-			minPct = Math.min(minPct, snapshot.prompt_credits.remaining_percentage);
+		for (const snap of snapshots.values()) {
+			if (snap.prompt_credits) {
+				minPct = Math.min(minPct, snap.prompt_credits.remaining_percentage);
+			}
 		}
 
 		if (minPct === 0) return 'red';
@@ -236,45 +266,46 @@ export class TrayManager {
 		return 'green';
 	}
 
-	async update(snapshot: quota_snapshot) {
-		this.lastSnapshot = snapshot;
-		const status = this.getStatus(snapshot);
+	async update(snapshots: Map<string, quota_snapshot>) {
+		this.lastSnapshots = snapshots;
+		const status = this.getStatus(snapshots);
 
-		// Kill old tray and create new one with updated menu
 		if (this.tray) {
 			await this.tray.kill(false);
 		}
 
-		await this.createTray(status, snapshot);
+		await this.createTray(status, snapshots);
 
-		// Check for notifications
 		if (this.config.showNotifications) {
-			this.checkAndNotify(snapshot);
+			this.checkAndNotify(snapshots);
 		}
 	}
 
-	private checkAndNotify(snapshot: quota_snapshot) {
+	private checkAndNotify(snapshots: Map<string, quota_snapshot>) {
 		const threshold = this.config.lowQuotaThreshold;
+		const currentKeys = new Set<string>();
 
-		for (const model of snapshot.models) {
-			const pct = model.remaining_percentage ?? 100;
-			const key = `${model.model_id}-${model.reset_time.getTime()}`;
+		for (const [provider, snapshot] of snapshots.entries()) {
+			for (const model of snapshot.models) {
+				const pct = model.remaining_percentage ?? 100;
+				const key = `${model.model_id}-${model.reset_time.getTime()}`;
+				currentKeys.add(key);
 
-			if (this.notifiedModels.has(key)) {
-				continue;
-			}
+				if (this.notifiedModels.has(key)) {
+					continue;
+				}
 
-			if (model.is_exhausted) {
-				this.notify(`${model.label} Exhausted`, `Quota depleted. Resets in ${model.time_until_reset_formatted}`);
-				this.notifiedModels.add(key);
-			} else if (pct < threshold) {
-				this.notify(`${model.label} Low Quota`, `Only ${pct.toFixed(0)}% remaining. Resets in ${model.time_until_reset_formatted}`);
-				this.notifiedModels.add(key);
+				if (model.is_exhausted) {
+					this.notify(`${provider} Exhausted`, `${model.label} quota depleted. Resets in ${model.time_until_reset_formatted}`);
+					this.notifiedModels.add(key);
+				} else if (pct < threshold) {
+					this.notify(`${provider} Low Quota`, `${model.label} only ${pct.toFixed(0)}% remaining. Resets in ${model.time_until_reset_formatted}`);
+					this.notifiedModels.add(key);
+				}
 			}
 		}
 
 		// Clean up old notification keys
-		const currentKeys = new Set(snapshot.models.map(m => `${m.model_id}-${m.reset_time.getTime()}`));
 		for (const key of this.notifiedModels) {
 			if (!currentKeys.has(key)) {
 				this.notifiedModels.delete(key);
