@@ -94,6 +94,9 @@ export class AnthropicProvider implements IQuotaProvider {
 
     async fetch_quota() {
         if (!this.config.anthropicApiKey) {
+            if (this.update_callback) {
+                this.update_callback({ timestamp: new Date(), models: [] });
+            }
             return;
         }
 

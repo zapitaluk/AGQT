@@ -105,10 +105,11 @@ export class TrayManager {
 					enabled: false
 				});
 
-				if (snapshot.models.length === 0) {
+				if (snapshot.models.length === 0 && !snapshot.prompt_credits) {
+					const isAg = providerName === 'Google Antigravity';
 					this.menuItems.push({
-						title: `  No data yet...`,
-						tooltip: '',
+						title: isAg ? `  Waiting for data...` : `  Not Configured (Add API Key)`,
+						tooltip: isAg ? '' : 'Click "Open Config (API Keys)" below.',
 						enabled: false
 					});
 				} else {

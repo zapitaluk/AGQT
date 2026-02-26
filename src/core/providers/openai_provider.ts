@@ -94,7 +94,9 @@ export class OpenAIProvider implements IQuotaProvider {
 
     async fetch_quota() {
         if (!this.config.openaiApiKey) {
-            // Don't error, just don't poll if not configured
+            if (this.update_callback) {
+                this.update_callback({ timestamp: new Date(), models: [] });
+            }
             return;
         }
 
