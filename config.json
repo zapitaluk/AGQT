@@ -2,5 +2,7 @@
   "pollingInterval": 120,
   "pinnedModels": [],
   "lowQuotaThreshold": 20,
-  "showNotifications": true
+  "showNotifications": true,
+  "openaiApiKey": "",
+  "anthropicApiKey": ""
 }

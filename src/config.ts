@@ -38,7 +38,12 @@ export class ConfigManager {
 			if (fs.existsSync(this.config_path)) {
 				const data = fs.readFileSync(this.config_path, 'utf-8');
 				const parsed = JSON.parse(data);
-				return { ...DEFAULT_CONFIG, ...parsed };
+				const merged = { ...DEFAULT_CONFIG, ...parsed };
+				// Auto-fill and re-save config if there are missing keys (like newly added API keys)
+				if (Object.keys(parsed).length < Object.keys(DEFAULT_CONFIG).length) {
+					this.save(merged);
+				}
+				return merged;
 			}
 		} catch (e: any) {
 			console.error(`Failed to load config: ${e.message}`);
