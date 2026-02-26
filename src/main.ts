@@ -62,10 +62,17 @@ async function main() {
 			trayManager.update(snapshot);
 
 			// Log summary to console
-			const summary = snapshot.models
+			const modelSummary = snapshot.models
 				.map(m => `${m.label}: ${(m.remaining_percentage ?? 100).toFixed(0)}%`)
 				.join(', ');
-			console.log(`[${new Date().toLocaleTimeString()}] ${summary}`);
+
+			let creditSummary = '';
+			if (snapshot.prompt_credits) {
+				const pc = snapshot.prompt_credits;
+				creditSummary = ` | Credits: ${pc.available.toLocaleString()}/${pc.monthly.toLocaleString()} (${pc.remaining_percentage.toFixed(1)}%)`;
+			}
+
+			console.log(`[${new Date().toLocaleTimeString()}] ${modelSummary}${creditSummary}`);
 		});
 
 		quotaManager.on_error(error => {

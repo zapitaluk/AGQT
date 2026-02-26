@@ -130,18 +130,22 @@ export class QuotaManager {
 
 		const raw_models = user_status.cascadeModelConfigData?.clientModelConfigs || [];
 		const models: model_quota_info[] = raw_models
-			.filter((m: any) => m.quotaInfo)
+			.filter((m: any) => m.quotaInfo || m.quota_info)
 			.map((m: any) => {
-				const reset_time = new Date(m.quotaInfo.resetTime);
+				// Support both camelCase and snake_case API responses
+				const quota_info = m.quotaInfo || m.quota_info;
+				const reset_time_str = quota_info.resetTime || quota_info.reset_time;
+				const remaining_frac = quota_info.remainingFraction ?? quota_info.remaining_fraction;
+				const reset_time = new Date(reset_time_str);
 				const now = new Date();
 				const diff = reset_time.getTime() - now.getTime();
 
 				return {
 					label: m.label,
-					model_id: m.modelOrAlias?.model || 'unknown',
-					remaining_fraction: m.quotaInfo.remainingFraction,
-					remaining_percentage: m.quotaInfo.remainingFraction !== undefined ? m.quotaInfo.remainingFraction * 100 : undefined,
-					is_exhausted: m.quotaInfo.remainingFraction === 0,
+					model_id: m.modelOrAlias?.model || m.model_or_alias?.model || 'unknown',
+					remaining_fraction: remaining_frac,
+					remaining_percentage: remaining_frac !== undefined ? remaining_frac * 100 : undefined,
+					is_exhausted: remaining_frac === 0,
 					reset_time: reset_time,
 					time_until_reset: diff,
 					time_until_reset_formatted: this.format_time(diff),
