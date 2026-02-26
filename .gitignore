@@ -4,8 +4,9 @@ node_modules/
 # Build output
 dist/
 
-# Packaged executable (users should build their own)
+# Packaged executable (except main binary needed by install scripts)
 *.exe
+!antigravity-quota.exe
 
 # Notifier binaries (extracted at build time)
 notifier/
