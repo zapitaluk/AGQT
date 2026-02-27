@@ -33,10 +33,40 @@ async function main() {
 
 	const trayManager = new TrayManager(config);
 
-	// Start tray (shows "waiting for data")
+	// Set up callbacks on the aggregator right away so early fetches can update the UI
+	aggregator.on_update(snapshots => {
+		logger.debug(LOG_CAT, `Quota update received from aggregator`);
+		trayManager.update(snapshots);
+
+		// Log summary to console for Antigravity only just to keep terminal clean
+		const agSnapshot = snapshots.get('Google Antigravity');
+		if (agSnapshot) {
+			const modelSummary = agSnapshot.models
+				.map(m => `${m.label}: ${(m.remaining_percentage ?? 100).toFixed(0)}%`)
+				.join(', ');
+
+			let creditSummary = '';
+			if (agSnapshot.prompt_credits) {
+				const pc = agSnapshot.prompt_credits;
+				creditSummary = ` | Credits: ${pc.available.toLocaleString()}/${pc.monthly.toLocaleString()} (${pc.remaining_percentage.toFixed(1)}%)`;
+			}
+			console.log(`[${new Date().toLocaleTimeString()}] AG: ${modelSummary}${creditSummary}`);
+		}
+	});
+
+	// Start tray (shows "waiting for data" or placeholders)
 	await trayManager.start(() => {
 		logger.info(LOG_CAT, 'Manual refresh requested');
 		aggregator.forceRefreshAll();
+	});
+
+	// Trigger initial refresh for cloud APIs immediately so they show 'Not Configured' or populate
+	// before we even bother trying to find the Antigravity local process
+	anthropicProvider.fetch_quota();
+	openaiProvider.fetch_quota();
+
+	aggregator.on_error((provider, error) => {
+		logger.error(LOG_CAT, `[${provider}] Quota fetch error: ${error.message}`);
 	});
 
 	// Detect Antigravity process
@@ -68,31 +98,6 @@ async function main() {
 
 		// Initialize Antigravity specific requirements
 		antigravityProvider.init(info.connect_port, info.csrf_token);
-
-		// Set up callbacks on the aggregator
-		aggregator.on_update(snapshots => {
-			logger.debug(LOG_CAT, `Quota update received from aggregator`);
-			trayManager.update(snapshots);
-
-			// Log summary to console for Antigravity only just to keep terminal clean
-			const agSnapshot = snapshots.get('Google Antigravity');
-			if (agSnapshot) {
-				const modelSummary = agSnapshot.models
-					.map(m => `${m.label}: ${(m.remaining_percentage ?? 100).toFixed(0)}%`)
-					.join(', ');
-
-				let creditSummary = '';
-				if (agSnapshot.prompt_credits) {
-					const pc = agSnapshot.prompt_credits;
-					creditSummary = ` | Credits: ${pc.available.toLocaleString()}/${pc.monthly.toLocaleString()} (${pc.remaining_percentage.toFixed(1)}%)`;
-				}
-				console.log(`[${new Date().toLocaleTimeString()}] AG: ${modelSummary}${creditSummary}`);
-			}
-		});
-
-		aggregator.on_error((provider, error) => {
-			logger.error(LOG_CAT, `[${provider}] Quota fetch error: ${error.message}`);
-		});
 
 		// Start polling
 		const interval = config.pollingInterval;

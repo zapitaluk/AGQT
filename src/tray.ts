@@ -51,6 +51,8 @@ export class TrayManager {
 	private notifiedModels: Set<string> = new Set();
 	private onRefresh?: () => void;
 	private menuItems: MenuItemWithAction[] = [];
+	private updateDebounceTimer?: NodeJS.Timeout;
+	private isUpdating: boolean = false;
 
 	constructor(config: ConfigManager) {
 		this.config = config;
@@ -269,16 +271,38 @@ export class TrayManager {
 
 	async update(snapshots: Map<string, quota_snapshot>) {
 		this.lastSnapshots = snapshots;
-		const status = this.getStatus(snapshots);
 
-		if (this.tray) {
-			await this.tray.kill(false);
+		// Debounce rapid-fire updates (e.g. multiple providers firing within ms of each other)
+		// to prevent spawning multiple tray_darwin_release processes
+		if (this.updateDebounceTimer) {
+			clearTimeout(this.updateDebounceTimer);
 		}
 
-		await this.createTray(status, snapshots);
+		this.updateDebounceTimer = setTimeout(() => {
+			this._doUpdate();
+		}, 200);
+	}
 
-		if (this.config.showNotifications) {
-			this.checkAndNotify(snapshots);
+	private async _doUpdate() {
+		if (this.isUpdating) return;
+		this.isUpdating = true;
+
+		try {
+			const snapshots = this.lastSnapshots;
+			const status = this.getStatus(snapshots);
+
+			if (this.tray) {
+				await this.tray.kill(false);
+				this.tray = null;
+			}
+
+			await this.createTray(status, snapshots);
+
+			if (this.config.showNotifications) {
+				this.checkAndNotify(snapshots);
+			}
+		} finally {
+			this.isUpdating = false;
 		}
 	}
 

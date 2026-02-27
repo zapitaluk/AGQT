@@ -1,6 +1,14 @@
 # Antigravity Quota Tray (AGQT)
 
-A lightweight cross-platform system tray application that monitors your Anthropic Claude, OpenAI Codex, and Google Antigravity AI model quota usage in real-time.
+## Overview
+A lightweight, open-source cross-platform system tray application that monitors your Anthropic Claude, OpenAI Codex, and Google Antigravity AI model quota usage in real-time. Whether you are using local LLMs or cloud providers, AGQT unifies all your limits in one clean interface directly in your Windows Taskbar or macOS Menu Bar.
+
+## Details
+This project was built to solve the frustration of monitoring API quotas across different platforms. It uses a hybrid approach:
+- For cloud APIs (OpenAI, Anthropic), it securely polls the official endpoints using your provided API keys.
+- For local instances (like Google Antigravity or Anthropic Claude Code), it seamlessly watches local language server processes to extract usage metrics without needing additional configuration.
+
+The application is built with Node.js and TypeScript, packaged as a standalone executable via `pkg`, requiring no installation footprint—just pull the binary and run it!
 
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey)
@@ -58,40 +66,34 @@ Exit
 ### Prerequisites
 
 - Windows 10/11 or macOS (10.15+)
-- Google Antigravity installed and running
-- [Node.js](https://nodejs.org/) v18+ (for building only)
+- Google Antigravity installed and running (for local monitoring)
+- [Node.js](https://nodejs.org/) v18+ (for building from source only)
+
+### macOS — Install from DMG (Recommended)
+
+1. Download the latest `AGQT-x.x.x-macOS.dmg` from [Releases](https://github.com/your-username/antigravity-quota-tray/releases).
+2. Open the DMG and drag **Antigravity Quota Tray** to **Applications**.
+3. Launch the app from Applications or Spotlight.
+4. On first launch, macOS may warn about an unidentified developer — right-click the app and choose **Open** to bypass Gatekeeper.
+5. The app appears as an icon in your **Menu Bar** (top-right of screen).
 
 ### Quick Start (From Source)
 
 #### Windows
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/antigravity-quota-tray.git
+git clone https://github.com/your-username/antigravity-quota-tray.git
 cd antigravity-quota-tray
-
-# Install dependencies
 npm install
-
-# Build
 npm run build
-
-# Run
 npm run start
 ```
 
 #### macOS
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/antigravity-quota-tray.git
+git clone https://github.com/your-username/antigravity-quota-tray.git
 cd antigravity-quota-tray
-
-# Install dependencies
 npm install
-
-# Build
 npm run build
-
-# Run (requires sudo for pgrep/lsof on some systems depending on Antigravity install)
 npm run start
 ```
 
@@ -99,38 +101,41 @@ npm run start
 
 #### Windows
 ```bash
-# Package as .exe
 npm run package
 ```
 
 This creates:
-- `antigravity-quota.exe` - Main application (~37MB)
-- `traybin/tray_windows_release.exe` - Required system tray helper binary
-- `notifier/snoretoast-x64.exe` - Notification helper (Windows toast)
-- `notifier/notifu64.exe` - Notification helper fallback
-- `config.json` - Configuration file
+- `antigravity-quota.exe` — Main application (~37MB)
+- `traybin/tray_windows_release.exe` — System tray helper binary
+- `notifier/` — Notification helpers (snoretoast, notifu)
+- `config.json` — Configuration file
 
 #### macOS
 ```bash
-# Package as macOS executable
+# Build standalone binary
 npm run package-mac
+
+# Build .app bundle + .dmg installer
+npm run package-app
 ```
 
 This creates:
-- `antigravity-quota-mac` - Main application (~40MB)
-- `traybin/tray_darwin_release` - Required system tray helper binary
-- `notifier/terminal-notifier.app` - macOS notification helper
-- `config.json` - Configuration file
+- `antigravity-quota-mac` — Standalone binary (~46MB ARM / ~52MB x64)
+- `dist-app/Antigravity Quota Tray.app` — macOS application bundle
+- `AGQT-1.0.0-macOS.dmg` — Distributable DMG installer with drag-to-Applications
+- `traybin/tray_darwin_release` — System tray helper binary
+- `notifier/terminal-notifier.app` — macOS notification helper
+- `config.json` — Configuration file
 
-*Note: For both platforms, `npm run package` automatically prepares `traybin/` and `notifier/` via `scripts/postpackage.js`.*
+*Note: Packaging scripts automatically prepare `traybin/` and `notifier/` directories.*
 
 ## Usage
 
 1. **Start Antigravity** - The app needs Antigravity running to detect the language server.
 2. **Run the app**:
    - **Windows:** Double-click `antigravity-quota.exe` or run `npm start`
-   - **macOS:** Double-click the `antigravity-quota-mac` executable, or set up the LaunchAgent (see below).
-3. **Check the system tray (Menu Bar on macOS)** - Look for the colored icon in your taskbar/menu bar.
+   - **macOS:** Open `Antigravity Quota Tray.app` from Applications, or run the binary directly.
+3. **Check the system tray (Menu Bar on macOS)** — Look for the colored icon in your taskbar/menu bar.
 4. **Right-click (or click on macOS)** - View all models and their quota status.
 5. **Click a model** - Pin/unpin it for priority tracking.
 
@@ -202,13 +207,13 @@ Edit `config.json` to customize behavior or add API Keys. Click "Open Config (AP
 
 The application:
 
-1. **Detects Antigravity Process** - Finds `language_server_windows_x64.exe` running on your system
-2. **Extracts Connection Info** - Reads the CSRF token and port from process arguments
-3. **Polls Quota API** - Makes HTTPS requests to the local language server endpoint
-4. **Parses Response** - Extracts per-model quota information
-5. **Updates Tray** - Refreshes the icon and menu based on quota status
+1. **Detects Antigravity Process** — Finds the local language server process (e.g. `language_server_macos_arm` or `language_server_windows_x64.exe`)
+2. **Extracts Connection Info** — Reads the CSRF token and port from process arguments
+3. **Polls Cloud APIs** — Simultaneously queries OpenAI and Anthropic endpoints (if API keys are configured)
+4. **Parses Responses** — Extracts per-model quota information from all providers
+5. **Updates Tray** — Refreshes the icon and menu based on aggregate quota status
 
-### API Endpoint
+### Local API Endpoint
 
 ```
 POST https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus
@@ -219,26 +224,32 @@ POST https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUs
 ```
 antigravity-quota-tray/
 ├── src/
-│   ├── main.ts                 # Entry point
-│   ├── tray.ts                 # System tray management
-│   ├── config.ts               # JSON config manager
+│   ├── main.ts                    # Entry point
+│   ├── tray.ts                    # System tray management (debounced)
+│   ├── config.ts                  # JSON config manager
 │   ├── core/
-│   │   ├── quota_manager.ts    # API polling and parsing
-│   │   ├── process_finder.ts   # Windsurf process detection
-│   │   └── platform_strategies.ts  # OS-specific commands
+│   │   ├── aggregator.ts          # Multi-provider quota aggregation
+│   │   ├── process_finder.ts      # Local process detection
+│   │   ├── platform_strategies.ts # OS-specific commands
+│   │   └── providers/
+│   │       ├── antigravity_provider.ts  # Google Antigravity (local)
+│   │       ├── anthropic_provider.ts    # Anthropic Claude (API)
+│   │       └── openai_provider.ts       # OpenAI Codex (API)
 │   └── utils/
-│       ├── types.ts            # TypeScript interfaces
-│       └── logger.ts           # Console logging
-├── config.json                 # User configuration
+│       ├── types.ts               # TypeScript interfaces
+│       └── logger.ts              # Console logging
+├── config.json                    # User configuration
 ├── package.json
 ├── tsconfig.json
-├── antigravity-quota-silent.vbs      # Silent launcher (Windows)
-├── create-startup-shortcut.ps1       # Startup setup script (Windows)
-├── create-startup-shortcut-mac.sh    # Startup setup script (macOS)
+├── antigravity-quota-silent.vbs         # Silent launcher (Windows)
+├── create-startup-shortcut.ps1          # Startup setup script (Windows)
+├── create-startup-shortcut-mac.sh       # Startup setup script (macOS)
 ├── scripts/
-│   ├── postpackage.js          # Windows packaging script
-│   └── postpackage-mac.js      # macOS packaging script
-└── traybin/                    # Generated external tray tools
+│   ├── postpackage.js             # Windows packaging script
+│   ├── postpackage-mac.js         # macOS packaging script
+│   ├── create-macos-app.sh        # .app bundle + .dmg builder
+│   └── generate-iconset.js        # macOS app icon generator
+└── traybin/                       # Generated external tray tools
 ```
 
 ## Development
@@ -256,8 +267,14 @@ npm run build
 # Run built version
 npm run start
 
-# Package to executable
+# Package to Windows executable
 npm run package
+
+# Package to macOS binary
+npm run package-mac
+
+# Package to macOS .app + .dmg installer
+npm run package-app
 ```
 
 ## Troubleshooting

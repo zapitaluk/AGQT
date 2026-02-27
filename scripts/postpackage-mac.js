@@ -45,6 +45,20 @@ function copyDirectory(sourceRelPath, targetRelPath) {
 }
 
 function main() {
+    // Copy the correct architecture binary to the generic name
+    // pkg creates -arm64 and -x64 suffixed binaries; the LaunchAgent & startup script reference the unsuffixed name
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const suffixed = `antigravity-quota-mac-${arch}`;
+    const generic = 'antigravity-quota-mac';
+
+    if (fs.existsSync(path.join(rootDir, suffixed))) {
+        fs.copyFileSync(path.join(rootDir, suffixed), path.join(rootDir, generic));
+        fs.chmodSync(path.join(rootDir, generic), 0o755);
+        console.log(`Copied ${suffixed} -> ${generic} (for current architecture: ${arch})`);
+    } else {
+        console.log(`Warning: ${suffixed} not found. Skipping generic binary copy.`);
+    }
+
     // Copy traybin executable for darwin
     copyFile('node_modules/systray2/traybin/tray_darwin_release', 'traybin/tray_darwin_release');
 

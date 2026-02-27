@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+dist-app/
 
 # Packaged executable (except main binary needed by install scripts)
 *.exe
@@ -10,6 +11,12 @@ dist/
 
 # Notifier binaries (extracted at build time)
 notifier/
+
+# Tray binaries (extracted at build time)
+traybin/
+
+# DMG installer (built locally, distributed via GitHub Releases)
+*.dmg
 
 # Logs
 *.log

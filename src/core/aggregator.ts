@@ -11,6 +11,7 @@ export class QuotaAggregator {
 
     addProvider(provider: IQuotaProvider) {
         this.providers.push(provider);
+        this.snapshots.set(provider.provider_name, { timestamp: new Date(), models: [] });
 
         provider.on_update((snapshot) => {
             this.snapshots.set(provider.provider_name, snapshot);
